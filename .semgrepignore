@@ -1,0 +1,14 @@
+# .semgrepignore — keep the SAST scan focused on application code
+# so the before/after comparison is a fair like-for-like.
+
+# CI/CD workflow files (scanned as config, not application code)
+.github/
+
+# The CSRF demonstration page is a test artifact, not part of the app
+app/assets/csrf-attack.html
+
+# Dependencies and build output
+node_modules/
+
+# Documentation and evidence (screenshots, notes)
+docs/
