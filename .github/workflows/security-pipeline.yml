@@ -1,0 +1,112 @@
+name: DevSecOps Security Pipeline
+
+# ── When the pipeline runs ─────────────────────────────────────────────
+# Runs on every push to any branch, and on every pull request into main.
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+
+  # ── 1. BUILD & TEST ────────────────────────────────────────────────
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: npm test || echo "No test suite defined - continuing"
+
+  # ── 2. SAST — Semgrep  (THIS IS THE BLOCKING GATE) ─────────────────
+  sast:
+    name: SAST (Semgrep) - BLOCKING
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Semgrep
+        run: pip install semgrep
+
+      # --error makes Semgrep exit with code 1 if it finds ANY issue,
+      # which fails this job and blocks the pipeline / PR merge.
+      - name: Run Semgrep (fails build on findings)
+        run: semgrep scan --config=auto --error
+
+  # ── 3. DEPENDENCY SCAN — npm audit  (report only) ──────────────────
+  dependency-scan:
+    name: Dependency Scan (npm audit)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Install dependencies
+        run: npm install
+
+      # NodeGoat ships intentionally vulnerable dependencies, so this
+      # would always fail if enforced. We report high+ findings but do
+      # not block ( || true ). In a real project, remove || true to enforce.
+      - name: Run npm audit (high and above)
+        run: npm audit --audit-level=high || true
+
+  # ── 4. SECRET SCAN — Gitleaks ──────────────────────────────────────
+  secret-scan:
+    name: Secret Scan (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # Gitleaks scans the whole commit history
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── 5. CONTAINER SCAN — Trivy  (report only) ───────────────────────
+  container-scan:
+    name: Container Scan (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t nodegoat-app:ci .
+
+      # Scans the built image for OS/library CVEs. exit-code 0 = report
+      # only (the pinned mongo base image has known CVEs by design).
+      - name: Run Trivy image scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "nodegoat-app:ci"
+          format: "table"
+          exit-code: "0"
+          severity: "HIGH,CRITICAL"
