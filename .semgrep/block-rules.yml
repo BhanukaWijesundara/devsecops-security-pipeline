@@ -1,0 +1,20 @@
+rules:
+  - id: eval-on-request-data
+    languages: [javascript]
+    severity: ERROR
+    message: >
+      Server-side code injection (RCE): eval() is called on untrusted
+      request data. Attacker-controlled input executed as code. Use safe
+      numeric parsing (parseInt / Number) or a strict validator instead.
+    metadata:
+      cwe: "CWE-95: Improper Neutralization of Directives in Dynamically Evaluated Code (Eval Injection)"
+      owasp: "A03:2021 - Injection"
+      category: security
+    patterns:
+      - pattern-either:
+          - pattern: eval(req.body.$X)
+          - pattern: eval(req.query.$X)
+          - pattern: eval(req.params.$X)
+          - pattern: eval(req.body[$X])
+          - pattern: eval(req.query[$X])
+          - pattern: eval(req.params[$X])
