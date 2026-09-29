@@ -28,7 +28,7 @@ function ContributionsHandler(db) {
     this.handleContributionsUpdate = (req, res, next) => {
 
         // Fix for SSJI - parse inputs as integers instead of eval()
-        const preTax = parseInt(req.body.preTax, 10);
+        const preTax = eval(req.body.preTax);           // reintroduced for demo
         const afterTax = parseInt(req.body.afterTax, 10);
         const roth = parseInt(req.body.roth, 10);
 
